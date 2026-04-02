@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skaner Pro v3</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #f4f4f9; padding: 20px; color: #333; }
+        #reader { width: 100%; max-width: 500px; margin: auto; border-radius: 15px; overflow: hidden; background: black; }
+        .controls { margin: 15px 0; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .box { padding: 15px; margin: 10px auto; width: 85%; border-radius: 8px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border: 1px solid #ddd; }
+        .match { background: #d4edda; color: #155724; border-color: #c3e6cb; font-weight: bold; }
+        .mismatch { background: #f8d7da; color: #721c24; border-color: #f5c6cb; font-weight: bold; }
+        select, button { padding: 12px; border-radius: 5px; border: 1px solid #ccc; font-size: 14px; }
+        button { background: #007bff; color: white; border: none; cursor: pointer; }
+        button:disabled { background: #ccc; }
+        .lang-select { margin-bottom: 15px; background: #fff; padding: 10px; border-radius: 8px; display: inline-block; }
+    </style>
+</head>
+<body>
+
+    <h2>🔍 Skaner Nasienny</h2>
+
+    <div class="lang-select">
+        🌐 Język / Language: 
+        <select id="langChoice" onchange="changeLanguage()">
+            <option value="pl-PL">Polski</option>
+            <option value="en-US">English</option>
+            <option value="fr-FR">Français</option>
+        </select>
+    </div>
+
+    <div id="reader"></div>
+
+    <div class="controls">
+        <button id="btnA" onclick="setMode('A')">1. Skanuj Partię</button>
+        <button id="btnB" onclick="setMode('B')">2. Skanuj Rząd</button>
+    </div>
+
+    <div class="box">
+        <div id="labelA">Partia (A): <strong id="valA">---</strong></div>
+        <div id="labelB" style="margin-top: 10px;">Rząd (B): <strong id="valB">---</strong></div>
+    </div>
+
+    <div id="result" class="box">Status: Gotowy</div>
+
+    <button style="background: #6c757d; margin-top: 20px;" onclick="reset()">Reset</button>
+
+    <script>
+        let codeA = "";
+        let codeB = "";
+        let currentMode = "A";
+        const html5QrCode = new Html5Qrcode("reader");
+
+        const translations = {
+            "pl-PL": { match: "Zgodne", mismatch: "Niezgodne", scanA: "Skanuj Partię", scanB: "Skanuj Rząd", status: "Czekam..." },
+            "en-US": { match: "Matched", mismatch: "Mismatch", scanA: "Scan Lot", scanB: "Scan Row", status: "Waiting..." },
+            "fr-FR": { match: "Conforme", mismatch: "Non conforme", scanA: "Scanner Lot", scanB: "Scanner Rang", status: "En attente..." }
+        };
+
+        function speak(text) {
+            const lang = document.getElementById('langChoice').value;
+            const msg = new SpeechSynthesisUtterance();
+            msg.text = text;
+            msg.lang = lang;
+            window.speechSynthesis.speak(msg);
+        }
+
+        function changeLanguage() {
+            const lang = document.getElementById('langChoice').value;
+            const t = translations[lang];
+            document.getElementById('btnA').innerText = t.scanA;
+            document.getElementById('btnB').innerText = t.scanB;
+            document.getElementById('result').innerText = t.status;
+        }
+
+        function onScanSuccess(decodedText) {
+            if (currentMode === "A") {
+                codeA = decodedText;
+                document.getElementById("valA").innerText = codeA;
+                stopScanner();
+                setTimeout(() => setMode('B'), 500);
+            } else {
+                codeB = decodedText;
+                document.getElementById("valB").innerText = codeB;
+                compareCodes();
+                stopScanner();
+            }
+        }
+
+        function compareCodes() {
+            const resDiv = document.getElementById("result");
+            const lang = document.getElementById('langChoice').value;
+            
+            const normA = codeA.replace(/\./g, '-').trim().toUpperCase();
+            const normB = codeB.replace(/\./g, '-').trim().toUpperCase();
+
+            if (normA.includes(normB) || normB.includes(normA)) {
+                resDiv.innerText = translations[lang].match + " ✅";
+                resDiv.className = "box match";
+                speak(translations[lang].match);
+            } else {
+                resDiv.innerText = translations[lang].mismatch + " ❌";
+                resDiv.className = "box mismatch";
+                speak(translations[lang].mismatch);
+            }
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('btnA').disabled = (mode === 'A');
+            document.getElementById('btnB').disabled = (mode === 'B');
+            startScanner();
+        }
+
+        function startScanner() {
+            html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, onScanSuccess);
+        }
+
+        function stopScanner() {
+            html5QrCode.stop().catch(() => {});
+        }
+
+        function reset() {
+            codeA = ""; codeB = "";
+            document.getElementById("valA").innerText = "---";
+            document.getElementById("valB").innerText = "---";
+            document.getElementById("result").className = "box";
+            changeLanguage();
+            stopScanner();
+            setMode('A');
+        }
+    </script>
+</body>
+</html>
